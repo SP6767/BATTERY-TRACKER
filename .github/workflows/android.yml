@@ -1,0 +1,63 @@
+name: Build CellTrace APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Locate Android project
+        id: project
+        shell: bash
+        run: |
+          if [[ -f settings.gradle.kts || -f settings.gradle ]]; then
+            project_dir="."
+          elif [[ -f CellTrace/settings.gradle.kts || -f CellTrace/settings.gradle ]]; then
+            project_dir="CellTrace"
+          else
+            echo "Could not find settings.gradle(.kts) in the repository root or CellTrace/ directory." >&2
+            exit 1
+          fi
+          echo "dir=${project_dir}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36"
+
+      - name: Set up Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build debug APK
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: CellTrace-debug-APK
+          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
